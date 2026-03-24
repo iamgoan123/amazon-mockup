@@ -1,5 +1,6 @@
 // netlify/functions/generate.mjs
-// Netlify serverless function — calls Google Gemini API (FREE, no credit card)
+// Netlify serverless function — calls OpenRouter API (FREE, no credit card)
+// Uses free models available on OpenRouter
 
 export default async (req) => {
   const headers = {
@@ -19,15 +20,13 @@ export default async (req) => {
     });
   }
 
-  // Support both env var names
-  const API_KEY =
-    Netlify.env.get("GEMINI_API_KEY") || Netlify.env.get("GOOGLE_API_KEY");
+  const API_KEY = Netlify.env.get("OPENROUTER_API_KEY");
 
   if (!API_KEY) {
     return new Response(
       JSON.stringify({
         error:
-          "GEMINI_API_KEY not set. Add it in Netlify → Site Configuration → Environment Variables.",
+          "OPENROUTER_API_KEY not set. Add it in Netlify → Site Configuration → Environment Variables.",
       }),
       { status: 500, headers }
     );
@@ -129,72 +128,98 @@ Generate this EXACT JSON structure (all fields required):
 IMPORTANT RULES:
 - For non-clothing categories (Electronics, Beauty, Books, Home), set "sizes" to null
 - For Books, adapt highlights/style to show Author, Pages, Publisher, ISBN, Format instead of material/fit
-- For Electronics, show Connectivity, Battery Life, Compatibility instead of fabric details  
+- For Electronics, show Connectivity, Battery Life, Compatibility instead of fabric details
 - Make bullet points specific and detailed — mention actual technologies, materials, features
 - Reviews should feel authentic with varied writing styles
 - The title should be long and keyword-rich like real Amazon titles
 - All text must be professional and realistic
 - Return ONLY the JSON object, nothing else`;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+    // Try multiple free models in order of preference
+    const freeModels = [
+      "google/gemini-2.0-flash-exp:free",
+      "meta-llama/llama-4-scout:free",
+      "deepseek/deepseek-chat-v3-0324:free",
+      "qwen/qwen3-235b-a22b:free",
+    ];
 
-    const geminiResponse = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
+    let lastError = null;
+
+    for (const model of freeModels) {
+      try {
+        console.log(`Trying model: ${model}`);
+
+        const response = await fetch(
+          "https://openrouter.ai/api/v1/chat/completions",
           {
-            parts: [{ text: prompt }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2048,
-          responseMimeType: "application/json",
-        },
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${API_KEY}`,
+              "HTTP-Referer": "https://amazonmockuppage.netlify.app",
+              "X-Title": "Amazon Mockup Generator",
+            },
+            body: JSON.stringify({
+              model: model,
+              messages: [
+                {
+                  role: "system",
+                  content:
+                    "You are a JSON data generator. Return ONLY valid JSON. No markdown, no backticks, no explanation, no preamble, no thinking tags. Just the JSON object.",
+                },
+                { role: "user", content: prompt },
+              ],
+              temperature: 0.7,
+              max_tokens: 2500,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const errText = await response.text();
+          console.error(`Model ${model} failed:`, response.status, errText);
+          lastError = `${model}: ${response.status}`;
+          continue; // Try next model
+        }
+
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content || "";
+
+        // Clean the response — remove thinking tags, markdown, etc.
+        let cleaned = content
+          .replace(/<think>[\s\S]*?<\/think>/g, "")
+          .replace(/```json\s*/g, "")
+          .replace(/```\s*/g, "")
+          .trim();
+
+        // Find the JSON object in the response
+        const jsonStart = cleaned.indexOf("{");
+        const jsonEnd = cleaned.lastIndexOf("}");
+        if (jsonStart !== -1 && jsonEnd !== -1) {
+          cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
+        }
+
+        const parsed = JSON.parse(cleaned);
+        console.log(`Success with model: ${model}`);
+        return new Response(JSON.stringify(parsed), {
+          status: 200,
+          headers,
+        });
+      } catch (modelErr) {
+        console.error(`Model ${model} error:`, modelErr.message);
+        lastError = `${model}: ${modelErr.message}`;
+        continue; // Try next model
+      }
+    }
+
+    // All models failed
+    return new Response(
+      JSON.stringify({
+        error: "All AI models failed. Please try again in a moment.",
+        lastError,
       }),
-    });
-
-    if (!geminiResponse.ok) {
-      const errText = await geminiResponse.text();
-      console.error("Gemini API error:", geminiResponse.status, errText);
-      return new Response(
-        JSON.stringify({
-          error: `Gemini API error: ${geminiResponse.status}`,
-          details: errText,
-        }),
-        { status: 502, headers }
-      );
-    }
-
-    const geminiData = await geminiResponse.json();
-
-    // Extract text from Gemini response structure
-    const content =
-      geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-    // Clean and parse JSON
-    const cleaned = content
-      .replace(/```json\s*/g, "")
-      .replace(/```\s*/g, "")
-      .trim();
-
-    let parsed;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch (parseErr) {
-      console.error("JSON parse error:", parseErr.message);
-      console.error("Raw content:", content.substring(0, 500));
-      return new Response(
-        JSON.stringify({
-          error: "Failed to parse AI response as JSON",
-          raw: content.substring(0, 300),
-        }),
-        { status: 500, headers }
-      );
-    }
-
-    return new Response(JSON.stringify(parsed), { status: 200, headers });
+      { status: 502, headers }
+    );
   } catch (err) {
     console.error("Function error:", err);
     return new Response(
