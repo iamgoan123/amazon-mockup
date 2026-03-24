@@ -335,8 +335,7 @@ async function doGenerate(){
   }catch(e){
     hideLoading();
     document.getElementById('ov').classList.remove('hidden');
-    showError('Error: '+e.message+'. Please check your Grok API key in Netlify environment variables.');
-  }finally{
+    showError('Error: '+e.message+'. Please try again — the AI may have been slow to respond.');  }finally{
     document.getElementById('genBtn').disabled=false;
   }
 }
