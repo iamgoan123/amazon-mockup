@@ -1,8 +1,7 @@
 // netlify/functions/generate.mjs
-// Netlify serverless function that calls Grok (xAI) API
+// Netlify serverless function — calls Google Gemini API (FREE, no credit card)
 
 export default async (req) => {
-  // CORS headers
   const headers = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
@@ -20,13 +19,15 @@ export default async (req) => {
     });
   }
 
-  const GROK_API_KEY = Netlify.env.get("GROK_API_KEY");
+  // Support both env var names
+  const API_KEY =
+    Netlify.env.get("GEMINI_API_KEY") || Netlify.env.get("GOOGLE_API_KEY");
 
-  if (!GROK_API_KEY) {
+  if (!API_KEY) {
     return new Response(
       JSON.stringify({
         error:
-          "GROK_API_KEY not set. Add it in Netlify Dashboard → Site Settings → Environment Variables.",
+          "GEMINI_API_KEY not set. Add it in Netlify → Site Configuration → Environment Variables.",
       }),
       { status: 500, headers }
     );
@@ -36,7 +37,7 @@ export default async (req) => {
     const body = await req.json();
     const { brand, product, category, price, listPrice, color, context } = body;
 
-    const prompt = `You are an Amazon product listing data generator. Generate realistic, detailed Amazon product page data for the following product. Return ONLY valid JSON — no markdown backticks, no preamble, no explanation.
+    const prompt = `You are an Amazon product listing data generator. Generate realistic, detailed Amazon product page data for the following product. Return ONLY valid JSON — no markdown backticks, no preamble, no explanation. Just the raw JSON object.
 
 Brand: ${brand}
 Product: ${product}
@@ -132,47 +133,45 @@ IMPORTANT RULES:
 - Make bullet points specific and detailed — mention actual technologies, materials, features
 - Reviews should feel authentic with varied writing styles
 - The title should be long and keyword-rich like real Amazon titles
-- All text must be professional and realistic`;
+- All text must be professional and realistic
+- Return ONLY the JSON object, nothing else`;
 
-    const grokResponse = await fetch(
-      "https://api.x.ai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${GROK_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "grok-3-mini-fast",
-          messages: [
-            {
-              role: "system",
-              content:
-                "You are a JSON data generator. Return ONLY valid JSON. No markdown, no backticks, no explanation, no preamble. Just the JSON object.",
-            },
-            { role: "user", content: prompt },
-          ],
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+
+    const geminiResponse = await fetch(geminiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: prompt }],
+          },
+        ],
+        generationConfig: {
           temperature: 0.7,
-          max_tokens: 2000,
-        }),
-      }
-    );
+          maxOutputTokens: 2048,
+          responseMimeType: "application/json",
+        },
+      }),
+    });
 
-    if (!grokResponse.ok) {
-      const errText = await grokResponse.text();
-      console.error("Grok API error:", grokResponse.status, errText);
+    if (!geminiResponse.ok) {
+      const errText = await geminiResponse.text();
+      console.error("Gemini API error:", geminiResponse.status, errText);
       return new Response(
         JSON.stringify({
-          error: `Grok API error: ${grokResponse.status}`,
+          error: `Gemini API error: ${geminiResponse.status}`,
           details: errText,
         }),
         { status: 502, headers }
       );
     }
 
-    const grokData = await grokResponse.json();
+    const geminiData = await geminiResponse.json();
+
+    // Extract text from Gemini response structure
     const content =
-      grokData.choices?.[0]?.message?.content || "";
+      geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
     // Clean and parse JSON
     const cleaned = content
