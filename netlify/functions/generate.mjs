@@ -1,219 +1,108 @@
 // netlify/functions/generate.mjs
-// Netlify serverless function — calls OpenRouter API (FREE, no credit card)
+// Calls OpenRouter free API with a compact prompt for fast response
 
 export default async (req) => {
-  const headers = {
+  const h = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type",
   };
 
-  if (req.method === "OPTIONS") {
-    return new Response("", { status: 200, headers });
-  }
-
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers,
-    });
-  }
+  if (req.method === "OPTIONS") return new Response("", { status: 200, headers: h });
+  if (req.method !== "POST") return new Response(JSON.stringify({ error: "POST only" }), { status: 405, headers: h });
 
   const API_KEY = Netlify.env.get("OPENROUTER_API_KEY");
-
-  if (!API_KEY) {
-    return new Response(
-      JSON.stringify({
-        error:
-          "OPENROUTER_API_KEY not set. Add it in Netlify → Site Configuration → Environment Variables.",
-      }),
-      { status: 500, headers }
-    );
-  }
+  if (!API_KEY) return new Response(JSON.stringify({ error: "OPENROUTER_API_KEY not set in Netlify env vars." }), { status: 500, headers: h });
 
   try {
-    const body = await req.json();
-    const { brand, product, category, price, listPrice, color, context } = body;
+    const { brand, product, category, price, listPrice, color, context } = await req.json();
 
-    const prompt = `You are an Amazon product listing data generator. Generate realistic, detailed Amazon product page data for the following product. Return ONLY valid JSON — no markdown backticks, no preamble, no explanation. Just the raw JSON object.
+    // Short, focused prompt for fast AI response
+    const prompt = `Generate Amazon product JSON for: ${brand} ${product} (${category}, $${price}, ${color}). ${context || ""}
 
-Brand: ${brand}
-Product: ${product}
-Category: ${category}
-Price: $${price}
-List Price: $${listPrice}
-Colour: ${color}
-${context ? `Additional Context: ${context}` : ""}
+Return ONLY this JSON, no other text:
+{"title":"full Amazon title with brand and keywords","breadcrumbs":["${category}","SubCat","SubSubCat","Type"],"rating":4.4,"ratingCount":${Math.floor(800 + Math.random() * 3000)},"boughtRecently":"${Math.floor(1 + Math.random() * 8)}K+","bulletPoints":["point1","point2","point3","point4","point5"],"productDescription":"3 sentence paragraph","highlights":{"Material":"val","Care":"val","Colour":"${color}","Pattern":"val","Season":"val","Fit":"val"},"styleAttributes":{"Colour":"${color}","Style":"val","Season":"val","Pattern":"val","Fit":"val","Occasion":"val"},"itemDetails":{"Date First Available":"15 Aug 2024","Manufacturer":"${brand}","ASIN":"B0${Math.random().toString(36).substring(2, 10).toUpperCase()}","Model":"${Math.random().toString(36).substring(2, 8).toUpperCase()}","Department":"val"},"sizes":${category === "Clothing" || category === "Sports & Outdoors" ? '["S","M","L","XL","XXL"]' : "null"},"reviews":[{"name":"Name1","stars":5,"title":"title","body":"2 sentences","date":"15 Mar 2026","verified":true},{"name":"Name2","stars":4,"title":"title","body":"2 sentences","date":"8 Mar 2026","verified":true},{"name":"Name3","stars":5,"title":"title","body":"2 sentences","date":"1 Mar 2026","verified":true},{"name":"Name4","stars":5,"title":"title","body":"2 sentences","date":"20 Feb 2026","verified":false}],"ratingBars":[70,16,8,3,3],"brandPositiveRating":"93%","brandRecentOrders":"1K+"}
 
-Generate this EXACT JSON structure (all fields required):
-{
-  "title": "Full product title exactly as Amazon would show it (include brand, product name, key features, colour)",
-  "breadcrumbs": ["Top Category", "Sub Category", "Sub Sub Category", "Product Type"],
-  "rating": 4.4,
-  "ratingCount": 2847,
-  "boughtRecently": "2K+",
-  "bulletPoints": [
-    "Detailed bullet point 1 about key feature with specifics",
-    "Detailed bullet point 2 about materials/technology",
-    "Detailed bullet point 3 about design/comfort",
-    "Detailed bullet point 4 about practical features",
-    "Detailed bullet point 5 about what's included / care instructions"
-  ],
-  "productDescription": "A detailed 3-4 sentence product description paragraph as seen on Amazon, mentioning brand, key technologies, materials, use cases, and care.",
-  "highlights": {
-    "Material composition": "specific material",
-    "Care instructions": "specific care",
-    "Colour": "${color}",
-    "Pattern": "pattern type",
-    "Season": "season",
-    "Fit Type": "fit description"
-  },
-  "styleAttributes": {
-    "Colour": "${color}",
-    "Style": "style name",
-    "Sleeve Type": "if applicable or remove",
-    "Season": "season",
-    "Pattern": "pattern",
-    "Fit Type": "fit",
-    "Occasion": "occasion type"
-  },
-  "itemDetails": {
-    "Date First Available": "a recent date in 2024-2025",
-    "Manufacturer": "${brand}",
-    "ASIN": "generate realistic ASIN starting with B0",
-    "Item Model Number": "generate realistic model number",
-    "Department": "appropriate department"
-  },
-  "sizes": ["S", "M", "L", "XL", "XXL"],
-  "reviews": [
-    {
-      "name": "Realistic full name",
-      "stars": 5,
-      "title": "Short punchy review title",
-      "body": "2-3 sentence realistic review mentioning the product specifically",
-      "date": "15 March 2026",
-      "verified": true
-    },
-    {
-      "name": "Different name",
-      "stars": 5,
-      "title": "Different review title",
-      "body": "2-3 sentence realistic positive review",
-      "date": "10 March 2026",
-      "verified": true
-    },
-    {
-      "name": "Another name",
-      "stars": 4,
-      "title": "Slightly less enthusiastic title",
-      "body": "2-3 sentence review with minor critique but overall positive",
-      "date": "2 March 2026",
-      "verified": true
-    },
-    {
-      "name": "Fourth reviewer",
-      "stars": 5,
-      "title": "Enthusiastic title",
-      "body": "2-3 sentence glowing review",
-      "date": "22 February 2026",
-      "verified": false
-    }
-  ],
-  "ratingBars": [71, 15, 8, 3, 3],
-  "brandPositiveRating": "93%",
-  "brandRecentOrders": "1K+"
-}
+Fill in realistic values. Keep responses SHORT. bulletPoints should be 1 sentence each. productDescription should be exactly 3 sentences. Review bodies should be exactly 2 sentences. Return ONLY the JSON.`;
 
-IMPORTANT RULES:
-- For non-clothing categories (Electronics, Beauty, Books, Home), set "sizes" to null
-- For Books, adapt highlights/style to show Author, Pages, Publisher, ISBN, Format instead of material/fit
-- For Electronics, show Connectivity, Battery Life, Compatibility instead of fabric details
-- Make bullet points specific and detailed — mention actual technologies, materials, features
-- Reviews should feel authentic with varied writing styles
-- The title should be long and keyword-rich like real Amazon titles
-- All text must be professional and realistic
-- Return ONLY the JSON object, nothing else`;
-
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${API_KEY}`,
-          "HTTP-Referer": "https://amazonmockuppage.netlify.app",
-          "X-Title": "Amazon Mockup Generator",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "openrouter/free",
-          messages: [
-            {
-              role: "system",
-              content:
-                "You are a JSON data generator. Return ONLY valid JSON. No markdown, no backticks, no explanation, no preamble, no thinking tags, no chain of thought. Just output the raw JSON object.",
-            },
-            { role: "user", content: prompt },
-          ],
-          temperature: 0.7,
-          max_tokens: 2500,
-        }),
-      }
-    );
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${API_KEY}`,
+        "HTTP-Referer": "https://amazonmockuppage.netlify.app",
+        "X-Title": "Amazon Mockup Generator",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "openrouter/free",
+        messages: [
+          { role: "system", content: "Output ONLY valid JSON. No markdown. No backticks. No explanation. No thinking. Just raw JSON." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.6,
+        max_tokens: 1500,
+      }),
+    });
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("OpenRouter error:", response.status, errText);
-      return new Response(
-        JSON.stringify({
-          error: `AI API error: ${response.status}`,
-          details: errText,
-        }),
-        { status: 502, headers }
-      );
+      return new Response(JSON.stringify({ error: `API error: ${response.status}`, details: errText }), { status: 502, headers: h });
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
+    let content = data.choices?.[0]?.message?.content || "";
 
-    // Clean the response — remove thinking tags, markdown, etc.
-    let cleaned = content
+    // Aggressive cleaning
+    content = content
       .replace(/<think>[\s\S]*?<\/think>/g, "")
       .replace(/```json\s*/g, "")
       .replace(/```\s*/g, "")
+      .replace(/^[^{]*/, "")  // Remove everything before first {
       .trim();
 
-    // Find the JSON object in the response
-    const jsonStart = cleaned.indexOf("{");
-    const jsonEnd = cleaned.lastIndexOf("}");
-    if (jsonStart !== -1 && jsonEnd !== -1) {
-      cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
+    // Extract JSON
+    const start = content.indexOf("{");
+    const end = content.lastIndexOf("}");
+    if (start === -1 || end === -1) {
+      return new Response(JSON.stringify({ error: "No JSON found in AI response. Try again." }), { status: 500, headers: h });
+    }
+
+    let jsonStr = content.substring(start, end + 1);
+
+    // Try to fix truncated JSON by closing open structures
+    try {
+      JSON.parse(jsonStr);
+    } catch (e) {
+      // Count unclosed brackets and braces
+      let openBraces = 0, openBrackets = 0, inString = false, escaped = false;
+      for (let i = 0; i < jsonStr.length; i++) {
+        const c = jsonStr[i];
+        if (escaped) { escaped = false; continue; }
+        if (c === "\\") { escaped = true; continue; }
+        if (c === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (c === "{") openBraces++;
+        if (c === "}") openBraces--;
+        if (c === "[") openBrackets++;
+        if (c === "]") openBrackets--;
+      }
+      // Close any unclosed strings, arrays, objects
+      if (inString) jsonStr += '"';
+      for (let i = 0; i < openBrackets; i++) jsonStr += "]";
+      for (let i = 0; i < openBraces; i++) jsonStr += "}";
     }
 
     let parsed;
     try {
-      parsed = JSON.parse(cleaned);
-    } catch (parseErr) {
-      console.error("JSON parse error:", parseErr.message);
-      console.error("Raw content:", content.substring(0, 500));
-      return new Response(
-        JSON.stringify({
-          error: "Failed to parse AI response. Please try again.",
-          raw: content.substring(0, 300),
-        }),
-        { status: 500, headers }
-      );
+      parsed = JSON.parse(jsonStr);
+    } catch (e2) {
+      return new Response(JSON.stringify({ error: "JSON parse failed. Please try again.", raw: jsonStr.substring(0, 200) }), { status: 500, headers: h });
     }
 
-    return new Response(JSON.stringify(parsed), { status: 200, headers });
+    return new Response(JSON.stringify(parsed), { status: 200, headers: h });
   } catch (err) {
-    console.error("Function error:", err);
-    return new Response(
-      JSON.stringify({ error: err.message }),
-      { status: 500, headers }
-    );
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: h });
   }
 };
 
-export const config = {
-  path: "/.netlify/functions/generate",
-};
+export const config = { path: "/.netlify/functions/generate" };
