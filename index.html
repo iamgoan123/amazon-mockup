@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amazon Product Page Generator</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#0F1111;font-size:14px}
+
+/* ========== OVERLAY FORM ========== */
+.overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.78);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
+.overlay.hidden{display:none}
+.fbox{background:#fff;border-radius:10px;padding:36px 30px;max-width:520px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.4);max-height:92vh;overflow-y:auto}
+.fbox h2{font-size:21px;margin-bottom:2px}
+.fbox .sub{color:#565959;font-size:13px;margin-bottom:18px}
+.fbox label{display:block;font-weight:700;font-size:13px;margin:14px 0 4px}
+.fbox label:first-of-type{margin-top:0}
+.fbox input,.fbox select,.fbox textarea{width:100%;padding:9px 10px;border:1px solid #888;border-radius:4px;font-size:14px;font-family:inherit}
+.fbox textarea{height:70px;resize:vertical}
+.req{color:#cc0c39}
+.row2{display:flex;gap:12px}.row2>div{flex:1}
+.cat-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
+.cat-card{border:2px solid #e3e6e6;border-radius:6px;padding:10px 6px;text-align:center;cursor:pointer;font-size:12px;font-weight:600;transition:.15s;background:#fafafa}
+.cat-card:hover{border-color:#007185;background:#f0fafb}
+.cat-card.sel{border-color:#007185;background:#e7f6f8}
+.cat-card .ci{font-size:22px;display:block;margin-bottom:3px}
+.color-row{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.csw{width:34px;height:34px;border-radius:50%;border:3px solid transparent;cursor:pointer;transition:.15s}
+.csw.sel{border-color:#007185;box-shadow:0 0 0 2px #007185}
+.gen-btn{background:#FFD814;border:1px solid #FCD200;border-radius:20px;padding:12px;font-size:15px;font-weight:700;cursor:pointer;width:100%;color:#0F1111;margin-top:22px;transition:.15s}
+.gen-btn:hover{background:#F7CA00}
+.gen-btn:disabled{opacity:.6;cursor:not-allowed}
+
+/* ========== LOADING ========== */
+.loading-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fafafa;font-family:Arial,sans-serif}
+.spinner{width:48px;height:48px;border:4px solid #e3e6e6;border-top-color:#FF9900;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ld-title{font-size:18px;font-weight:700;color:#0F1111;margin-bottom:6px}
+.ld-msg{font-size:14px;color:#565959;transition:.3s}
+.ld-steps{margin-top:18px;text-align:left;font-size:13px;color:#888}
+.ld-steps div{margin-bottom:4px;transition:.3s}
+.ld-steps div.done{color:#007600}
+.ld-steps div.active{color:#0F1111;font-weight:600}
+
+/* ========== AMAZON HEADER ========== */
+.hdr{background:#131921;color:#fff;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.logo{font-size:22px;font-weight:700;color:#FF9900;font-style:italic;white-space:nowrap;text-decoration:none}
+.logo span{color:#fff}
+.deliver{font-size:11px;color:#ccc;white-space:nowrap;line-height:1.3}
+.deliver b{color:#fff;font-size:13px}
+.srch{flex:1;min-width:180px;display:flex;height:38px;border-radius:4px;overflow:hidden}
+.srch select{background:#e6e6e6;border:none;padding:0 6px;font-size:11px;color:#555}
+.srch input{flex:1;border:none;padding:0 10px;font-size:14px;outline:none}
+.srch button{background:#FEBD69;border:none;padding:0 14px;cursor:pointer;font-size:16px}
+.hnav{display:flex;gap:14px;font-size:12px}
+.hnav a{color:#fff;text-decoration:none;line-height:1.3}
+.hnav b{display:block;font-size:13px}
+.subnav{background:#232F3E;color:#fff;padding:7px 16px;display:flex;gap:15px;font-size:13px;overflow-x:auto;white-space:nowrap}
+.subnav a{color:#fff;text-decoration:none}
+.fashionnav{background:#f7f7f7;border-bottom:1px solid #e3e6e6;padding:8px 16px;display:flex;gap:20px;font-size:13px;font-weight:600;overflow-x:auto}
+.fashionnav a{color:#0F1111;text-decoration:none;white-space:nowrap}
+.fashionnav a.dl{color:#cc0c39}
+.sponsored{font-size:10px;color:#565959;padding:4px 16px;background:#fafafa;border-bottom:1px solid #e3e6e6}
+.bcrumb{padding:10px 16px;font-size:12px;color:#565959}
+.bcrumb a{color:#007185;text-decoration:none}
+
+/* ========== PRODUCT ========== */
+.prod{display:flex;gap:16px;padding:0 16px 30px;flex-wrap:wrap;max-width:1300px;margin:0 auto}
+.prod-img{flex:0 0 420px;max-width:100%}
+.main-img{width:100%;aspect-ratio:1;background:#fff;border:1px solid #e3e6e6;border-radius:4px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+.ph{display:flex;flex-direction:column;align-items:center;justify-content:center;color:#888;text-align:center;padding:30px}
+.ph .ico{font-size:72px;opacity:.3;margin-bottom:10px}
+.ph b{font-size:16px;color:#555}
+.ph small{color:#aaa;margin-top:6px}
+.thumbs{display:flex;gap:6px}
+.thb{width:52px;height:52px;border:2px solid #e3e6e6;border-radius:3px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:9px;color:#888;background:#fafafa}
+.thb:hover,.thb.act{border-color:#007185}
+
+.prod-info{flex:1;min-width:280px}
+.brand-link{color:#007185;font-size:14px;text-decoration:none;display:block;margin-bottom:4px}
+.prod-info h1{font-size:24px;font-weight:400;line-height:1.3;margin-bottom:6px}
+.rrow{display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap}
+.stars{color:#FFA41C;letter-spacing:1px}
+.rc{color:#007185;font-size:14px}
+.bought{color:#565959;font-size:13px;margin-bottom:10px;display:block}
+.price-box{padding:12px 0;border-bottom:1px solid #e3e6e6;margin-bottom:12px}
+.dbadge{background:#CC0C39;color:#fff;font-size:12px;padding:2px 8px;border-radius:2px;margin-right:8px;font-weight:700}
+.price{font-size:28px}.price sup{font-size:13px}
+.listprice{font-size:13px;color:#565959;text-decoration:line-through;margin-left:10px}
+.pay4{font-size:13px;color:#565959;margin-top:4px}
+.freedel{font-size:13px;margin-top:6px}.freedel b{color:#0F1111}
+.returns-note{font-size:12px;color:#007185;border:1px solid #e3e6e6;border-radius:4px;padding:10px;margin-top:10px}
+
+.opt-sec{margin:12px 0;padding-bottom:12px;border-bottom:1px solid #e3e6e6}
+.opt-label{font-size:13px;font-weight:700;margin-bottom:8px}
+.opt-label span{font-weight:400}
+.clr-opts{display:flex;gap:8px;flex-wrap:wrap}
+.clr-box{text-align:center}
+.clr-o{width:36px;height:36px;border-radius:50%;border:2px solid #ddd;cursor:pointer}
+.clr-o.sel{border-color:#007185;box-shadow:0 0 0 2px rgba(0,113,133,.3)}
+.clr-box small{display:block;font-size:10px;color:#565959;margin-top:2px}
+.sz-opts{display:flex;gap:6px;flex-wrap:wrap}
+.sz-b{border:1px solid #888;border-radius:4px;padding:7px 16px;font-size:13px;cursor:pointer;background:#fff}
+.sz-b.sel{border-color:#007185;box-shadow:0 0 0 2px rgba(0,113,133,.3)}
+
+.hl-sec{margin:12px 0;padding-bottom:12px;border-bottom:1px solid #e3e6e6}
+.hl-sec h4{font-size:14px;font-weight:700;margin-bottom:10px}
+.hl-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px}
+.hl-item{display:flex;gap:8px;font-size:13px;padding:3px 0}
+.hl-k{color:#565959;min-width:120px}
+.hl-v{color:#0F1111;font-weight:500}
+
+.about{padding:14px 0;border-bottom:1px solid #e3e6e6}
+.about h3{font-size:16px;font-weight:700;margin-bottom:10px}
+.about li{margin-bottom:6px;line-height:1.5;margin-left:18px}
+
+.style-tbl{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+.style-tbl td{padding:6px 12px;border:1px solid #e3e6e6}
+.style-tbl td:first-child{color:#565959;font-weight:600;background:#fafafa;width:140px}
+
+.topbrand{border:1px solid #e3e6e6;border-radius:8px;padding:14px;margin:16px 0;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.topbrand .badge{background:#232F3E;color:#fff;font-size:11px;padding:3px 8px;border-radius:3px;font-weight:700}
+.topbrand .bname{font-size:16px;font-weight:700;margin-top:4px}
+.topbrand .bstat{font-size:12px;color:#565959}
+
+/* BUY BOX */
+.bbox{flex:0 0 260px;border:1px solid #e3e6e6;border-radius:8px;padding:16px;height:fit-content}
+.bbox .bp{font-size:18px;margin-bottom:6px}.bbox .bp sup{font-size:11px}
+.bbox .del{font-size:13px;color:#565959;margin-bottom:10px;line-height:1.5}.bbox .del b{color:#0F1111}
+.bbox .stock{color:#007600;font-size:18px;margin-bottom:10px}
+.bbox .loc{font-size:12px;color:#007185;margin-bottom:10px}
+.bbox select{padding:6px 8px;border:1px solid #ccc;border-radius:8px;font-size:13px;margin-bottom:10px;background:#F0F2F2;width:100%}
+.bbox .atc{width:100%;padding:10px;background:#FFD814;border:1px solid #FCD200;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:8px;font-weight:600}
+.bbox .bn{width:100%;padding:10px;background:#FFA41C;border:1px solid #FF8F00;border-radius:20px;font-size:14px;cursor:pointer;font-weight:600}
+.bbox .sec{font-size:12px;color:#007185;margin-top:10px}
+.bbox .sf{font-size:12px;color:#565959;margin-top:8px;line-height:1.6}
+.bbox .sf a{color:#007185;text-decoration:none}
+.bbox .wish{width:100%;padding:8px;background:#fff;border:1px solid #ccc;border-radius:20px;font-size:13px;cursor:pointer;margin-top:10px}
+
+.pdesc{padding:20px 16px;max-width:1300px;margin:0 auto;border-top:1px solid #e3e6e6}
+.pdesc h3{font-size:16px;font-weight:700;margin-bottom:10px}
+.pdesc p{line-height:1.6;color:#333}
+
+.pdet{padding:20px 16px;max-width:1300px;margin:0 auto;border-top:1px solid #e3e6e6}
+.pdet h3{font-size:16px;font-weight:700;margin-bottom:12px}
+.pdet-row{display:flex;gap:8px;font-size:13px;margin-bottom:3px}
+.pdet-k{color:#565959;font-weight:700;min-width:180px}
+
+/* REVIEWS */
+.revs{padding:20px 16px;max-width:1300px;margin:0 auto;border-top:1px solid #e3e6e6}
+.revs h3{font-size:18px;font-weight:700;margin-bottom:16px}
+.rev-sum{display:flex;gap:30px;margin-bottom:24px;flex-wrap:wrap}
+.rev-ov{text-align:center}.rev-ov .bnum{font-size:48px;font-weight:700;line-height:1}
+.rev-bars{flex:1;min-width:200px}
+.bar-r{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:13px}
+.bar-r a{color:#007185;text-decoration:none;min-width:40px}
+.bar-bg{flex:1;height:18px;background:#F0F2F2;border-radius:4px;overflow:hidden}
+.bar-fl{height:100%;background:#FFA41C;border-radius:4px}
+.bar-p{min-width:32px;text-align:right;color:#007185}
+.rev-card{border-bottom:1px solid #e3e6e6;padding:16px 0}
+.rev-card:last-child{border:none}
+.rver{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.rav{width:32px;height:32px;border-radius:50%;background:#F0F2F2;display:flex;align-items:center;justify-content:center;font-weight:700;color:#555}
+.rtitle{font-weight:700;font-size:14px;margin:2px 0}
+.rdate{font-size:12px;color:#565959;margin-bottom:6px}
+.rbody{font-size:14px;line-height:1.5;color:#333}
+.veri{font-size:11px;color:#C45500;font-weight:700;margin-left:6px}
+
+.ft-top{background:#37475A;color:#fff;text-align:center;padding:14px;font-size:13px;cursor:pointer;margin-top:30px}
+.ft{background:#232F3E;color:#DDD;padding:30px 16px;font-size:12px}
+.ft-cols{display:flex;gap:40px;max-width:1000px;margin:0 auto;flex-wrap:wrap}
+.ft-col h4{color:#fff;font-size:14px;margin-bottom:10px}
+.ft-col a{display:block;color:#DDD;text-decoration:none;margin-bottom:5px}
+.ft-bot{background:#131A22;color:#999;text-align:center;padding:20px;font-size:11px}
+
+.edit-btn{position:fixed;bottom:20px;right:20px;background:#FF9900;color:#fff;border:none;border-radius:50%;width:52px;height:52px;font-size:20px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:100}
+.edit-btn:hover{background:#e88b00}
+
+.error-box{background:#FFF3F3;border:1px solid #cc0c39;border-radius:6px;padding:14px;margin-top:14px;font-size:13px;color:#cc0c39;display:none}
+
+@media(max-width:768px){
+  .prod{flex-direction:column}
+  .prod-img,.bbox{flex:none;width:100%}
+  .cat-cards{grid-template-columns:repeat(2,1fr)}
+  .hl-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ========== INPUT FORM ========== -->
+<div class="overlay" id="ov">
+<div class="fbox">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px">
+    <span style="font-size:26px;font-weight:700;color:#FF9900;font-style:italic">amazon</span>
+    <span style="font-size:13px;color:#565959;border-left:1px solid #ddd;padding-left:10px">AI Page Generator</span>
+  </div>
+  <p class="sub">Enter brand & product — Grok AI generates the entire Amazon product page.</p>
+
+  <label>Brand Name <span class="req">*</span></label>
+  <input id="f-brand" placeholder="e.g. Columbia, Nike, Samsung, Dyson">
+
+  <label>Product Name <span class="req">*</span></label>
+  <input id="f-product" placeholder="e.g. Men's Delta Ridge Down Hooded Jacket">
+
+  <label>Category</label>
+  <div class="cat-cards" id="catCards">
+    <div class="cat-card sel" data-v="Clothing"><span class="ci">👕</span>Clothing</div>
+    <div class="cat-card" data-v="Electronics"><span class="ci">📱</span>Electronics</div>
+    <div class="cat-card" data-v="Home & Kitchen"><span class="ci">🏠</span>Home</div>
+    <div class="cat-card" data-v="Sports & Outdoors"><span class="ci">⚽</span>Sports</div>
+    <div class="cat-card" data-v="Beauty"><span class="ci">💄</span>Beauty</div>
+    <div class="cat-card" data-v="Books"><span class="ci">📚</span>Books</div>
+  </div>
+
+  <div class="row2">
+    <div><label>Price ($)</label><input id="f-price" type="number" value="212"></div>
+    <div><label>List Price ($)</label><input id="f-listprice" type="number" placeholder="Auto"></div>
+  </div>
+
+  <label>Product Colour</label>
+  <div class="color-row" id="fColors"></div>
+
+  <label>Extra Context <span style="font-weight:400;color:#888">(optional — helps AI generate better)</span></label>
+  <textarea id="f-ctx" placeholder="e.g. Water-repellent, Omni-Heat technology, 650-fill down, for hiking and winter use"></textarea>
+
+  <div class="error-box" id="errBox"></div>
+  <button class="gen-btn" id="genBtn" onclick="doGenerate()">✨ Generate with Grok AI</button>
+</div>
+</div>
+
+<!-- ========== LOADING ========== -->
+<div id="loadScreen" style="display:none"></div>
+
+<!-- ========== AMAZON PAGE ========== -->
+<div id="page" style="display:none"></div>
+
+<script>
+// ========== STATE ==========
+let selCat='Clothing', selColorIdx=0;
+const COLORS=[
+  {h:"#2d5a27",n:"Stone Green"},{h:"#1a1a2e",n:"Navy"},{h:"#222",n:"Black"},
+  {h:"#8B4513",n:"Brown"},{h:"#B22222",n:"Red"},{h:"#4682B4",n:"Blue"},
+  {h:"#555",n:"Grey"},{h:"#F5F5DC",n:"Beige"}
+];
+
+// Init colors
+document.getElementById('fColors').innerHTML=COLORS.map((c,i)=>
+  `<div class="csw${i===0?' sel':''}" style="background:${c.h}" title="${c.n}" onclick="pickClr(this,${i})"></div>`
+).join('');
+
+// Cat cards
+document.querySelectorAll('.cat-card').forEach(c=>c.addEventListener('click',function(){
+  document.querySelectorAll('.cat-card').forEach(x=>x.classList.remove('sel'));
+  this.classList.add('sel');
+  selCat=this.dataset.v;
+}));
+
+function pickClr(el,i){
+  document.querySelectorAll('.csw').forEach(x=>x.classList.remove('sel'));
+  el.classList.add('sel');selColorIdx=i;
+}
+
+function starsHTML(r,sz=15){
+  const f=Math.floor(r),half=r%1>=.3;
+  return `<span class="stars" style="font-size:${sz}px">${'★'.repeat(f)}${half?'½':''}${'☆'.repeat(5-f-(half?1:0))}</span>`;
+}
+
+// ========== LOADING SCREEN ==========
+function showLoading(){
+  document.getElementById('ov').classList.add('hidden');
+  document.getElementById('page').style.display='none';
+  const el=document.getElementById('loadScreen');
+  el.style.display='';
+  el.innerHTML=`
+    <div class="loading-screen">
+      <div class="spinner"></div>
+      <div class="ld-title">Generating with Grok AI</div>
+      <div class="ld-msg" id="ldMsg">Sending product details to AI...</div>
+      <div class="ld-steps" id="ldSteps">
+        <div class="active" id="ls0">⏳ Analyzing brand & product...</div>
+        <div id="ls1">⏳ Writing product description...</div>
+        <div id="ls2">⏳ Generating specifications...</div>
+        <div id="ls3">⏳ Creating customer reviews...</div>
+        <div id="ls4">⏳ Building Amazon page...</div>
+      </div>
+    </div>`;
+  let step=0;
+  window._ldInterval=setInterval(()=>{
+    if(step<4){
+      document.getElementById('ls'+step).className='done';
+      document.getElementById('ls'+step).textContent='✅ '+document.getElementById('ls'+step).textContent.slice(2);
+      step++;
+      document.getElementById('ls'+step).className='active';
+    }
+  },3000);
+}
+function hideLoading(){
+  clearInterval(window._ldInterval);
+  document.getElementById('loadScreen').style.display='none';
+}
+
+// ========== GENERATE ==========
+async function doGenerate(){
+  const brand=document.getElementById('f-brand').value.trim();
+  const product=document.getElementById('f-product').value.trim();
+  if(!brand||!product){
+    showError('Please enter both Brand Name and Product Name.');return;
+  }
+  const price=parseFloat(document.getElementById('f-price').value)||212;
+  const listP=parseFloat(document.getElementById('f-listprice').value)||Math.round(price*1.35);
+  const colorName=COLORS[selColorIdx].n;
+  const colorHex=COLORS[selColorIdx].h;
+  const ctx=document.getElementById('f-ctx').value.trim();
+
+  document.getElementById('genBtn').disabled=true;
+  showLoading();
+
+  try{
+    const resp=await fetch('/.netlify/functions/generate',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({brand,product,category:selCat,price,listPrice:listP,color:colorName,context:ctx})
+    });
+
+    if(!resp.ok){
+      const err=await resp.text();
+      throw new Error(err||'Server error '+resp.status);
+    }
+
+    const data=await resp.json();
+    hideLoading();
+    renderPage(data,{brand,product,price,listPrice:listP,colorName,colorHex,category:selCat});
+  }catch(e){
+    hideLoading();
+    document.getElementById('ov').classList.remove('hidden');
+    showError('Error: '+e.message+'. Please check your Grok API key in Netlify environment variables.');
+  }finally{
+    document.getElementById('genBtn').disabled=false;
+  }
+}
+
+function showError(msg){
+  const el=document.getElementById('errBox');
+  el.textContent=msg;el.style.display='block';
+  setTimeout(()=>el.style.display='none',8000);
+}
+
+// ========== RENDER ==========
+function renderPage(d,inp){
+  const {brand,product,price,listPrice,colorName,colorHex,category}=inp;
+  const savPct=Math.round(((listPrice-price)/listPrice)*100);
+  const whole=Math.floor(price);
+  const frac=((price%1)*100).toFixed(0).padStart(2,'0');
+  const rating=d.rating||4.4;
+  const rc=d.ratingCount||1847;
+  const delDate=new Date(Date.now()+5*864e5).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  const colorVars=[{h:colorHex,n:colorName},...COLORS.filter((_,i)=>i!==selColorIdx).slice(0,3)];
+  const showFashion=['Clothing','Sports & Outdoors'].includes(category);
+  const sizes=d.sizes||null;
+  const barPcts=d.ratingBars||[71,15,7,4,3];
+
+  const pg=document.getElementById('page');
+  pg.style.display='block';
+  pg.innerHTML=`
+<!-- HEADER -->
+<div class="hdr">
+  <a class="logo" href="#">amazon<span>.com.au</span></a>
+  <div class="deliver">📍 Deliver to<br><b>You</b></div>
+  <div class="srch"><select><option>All</option></select><input value="${brand} ${product}"><button>🔍</button></div>
+  <div class="hnav">
+    <a href="#">EN</a>
+    <a href="#">Hello, sign in<b>Account & Lists</b></a>
+    <a href="#">Returns<b>& Orders</b></a>
+    <a href="#">🛒 Cart</a>
+  </div>
+</div>
+<div class="subnav"><a href="#">☰ All</a><a href="#">Amazon Haul</a><a href="#">Best Sellers</a><a href="#">Today's Deals</a><a href="#">Prime</a><a href="#">New Releases</a><a href="#">Buy More & Save</a><a href="#">Music</a><a href="#">Books</a><a href="#">Electronics</a><a href="#">Fashion</a><a href="#">Home</a><a href="#">Gift Cards</a></div>
+${showFashion?'<div class="fashionnav"><a href="#">NEW</a><a href="#">WOMEN</a><a href="#">MEN</a><a href="#">SPORTS & OUTDOORS</a><a href="#">KIDS & BABY</a><a href="#">LUGGAGE</a><a href="#" class="dl">DEALS</a></div>':''}
+<div class="sponsored">Sponsored</div>
+<div class="bcrumb">${(d.breadcrumbs||[category,brand]).map(b=>'<a href="#">'+b+'</a>').join(' › ')}</div>
+
+<!-- PRODUCT -->
+<div class="prod">
+  <div class="prod-img">
+    <div class="main-img"><div class="ph"><div class="ico">📦</div><b>${brand}</b><br>${product}<br><small>[Product Image Placeholder]</small></div></div>
+    <div class="thumbs">${['Front','Back','Side','Detail','Label','Box'].map((v,i)=>`<div class="thb${i===0?' act':''}">${v}</div>`).join('')}</div>
+  </div>
+
+  <div class="prod-info">
+    <a class="brand-link" href="#">Visit the ${brand} Store</a>
+    <h1>${d.title||brand+' '+product}</h1>
+    <div class="rrow">${starsHTML(rating)} <span class="rc">${rating} out of 5 stars</span> <span class="rc">(${rc.toLocaleString()})</span></div>
+    <span class="bought">${d.boughtRecently||'2K+'} bought in past month</span>
+
+    <div class="price-box">
+      <span class="dbadge">-${savPct}%</span>
+      <span class="price"><sup>$</sup>${whole}<sup>${frac}</sup></span>
+      <span class="listprice">$${listPrice}.00</span>
+      <div class="pay4">Or $${(price/4).toFixed(2)} /payment at 0% (Pay in 4). <a href="#" style="color:#007185">Payment plans</a></div>
+      <div class="freedel"><b>FREE delivery</b> on orders over $59. <a href="#" style="color:#007185">Details</a></div>
+    </div>
+    <div class="returns-note">↩️ Free returns on eligible items. Enjoy 30 day hassle free returns | <a href="#" style="color:#007185">Learn more</a></div>
+
+    <div class="opt-sec">
+      <div class="opt-label">Colour Name: <span>${colorName}</span></div>
+      <div class="clr-opts">${colorVars.map((c,i)=>`<div class="clr-box"><div class="clr-o${i===0?' sel':''}" style="background:${c.h}"></div><small>${c.n}</small></div>`).join('')}</div>
+    </div>
+
+    ${sizes?`<div class="opt-sec"><div class="opt-label">Size: <span>${sizes[1]||sizes[0]}</span></div><div class="sz-opts">${sizes.map((s,i)=>`<div class="sz-b${i===1?' sel':''}">${s}</div>`).join('')}</div></div>`:''}
+
+    <div class="hl-sec"><h4>Top Highlights</h4><div class="hl-grid">${Object.entries(d.highlights||{}).map(([k,v])=>`<div class="hl-item"><span class="hl-k">${k}</span><span class="hl-v">${v}</span></div>`).join('')}</div></div>
+
+    <div class="about"><h3>About this item</h3><ul>${(d.bulletPoints||[]).map(b=>`<li>${b}</li>`).join('')}</ul></div>
+
+    ${d.styleAttributes?`<table class="style-tbl">${Object.entries(d.styleAttributes).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>`:''}
+
+    <div class="topbrand">
+      <div><span class="badge">Top Brand</span><div class="bname">${brand}</div></div>
+      <div><div class="bstat">✅ ${d.brandPositiveRating||'93%'} positive ratings from 1K+ customers</div><div class="bstat">📦 ${d.brandRecentOrders||'1K+'} recent orders</div></div>
+    </div>
+  </div>
+
+  <!-- BUY BOX -->
+  <div class="bbox">
+    <div class="bp"><span class="price"><sup>$</sup>${whole}<sup>${frac}</sup></span></div>
+    <div class="del"><b>FREE delivery</b> <b>${delDate}</b><br>Or fastest delivery <b>Tomorrow</b>. Order within <span style="color:#007600">5 hrs 23 mins</span></div>
+    <div class="loc">📍 Deliver to you</div>
+    <div class="stock">In Stock</div>
+    <select>${[1,2,3,4,5].map(n=>`<option>Qty: ${n}</option>`).join('')}</select>
+    <button class="atc">Add to Cart</button>
+    <button class="bn">Buy Now</button>
+    <div class="sec">🔒 Secure transaction</div>
+    <div class="sf">Ships from <a href="#">Amazon</a><br>Sold by <a href="#">${brand} Official Store</a></div>
+    <div style="border-top:1px solid #e3e6e6;margin-top:10px;padding-top:8px;font-size:12px;color:#565959">Payment <b style="color:#0F1111">Secure transaction</b></div>
+    <button class="wish">♡ Add to Wish List</button>
+  </div>
+</div>
+
+<!-- PRODUCT DESCRIPTION -->
+<div class="pdesc"><h3>Product Description</h3><p>${d.productDescription||''}</p></div>
+
+<!-- PRODUCT DETAILS -->
+<div class="pdet"><h3>Product Details</h3>${Object.entries(d.itemDetails||{}).map(([k,v])=>`<div class="pdet-row"><span class="pdet-k">${k} ‏ : ‎</span><span>${v}</span></div>`).join('')}<div class="pdet-row"><span class="pdet-k">Customer Reviews ‏ : ‎</span><span>${starsHTML(rating,14)} (${rc.toLocaleString()})</span></div></div>
+
+<!-- REVIEWS -->
+<div class="revs">
+  <h3>Customer Reviews</h3>
+  <div class="rev-sum">
+    <div class="rev-ov"><div class="bnum">${rating}</div>${starsHTML(rating,22)}<div style="font-size:13px;color:#565959;margin-top:4px">${rc.toLocaleString()} global ratings</div></div>
+    <div class="rev-bars">${[5,4,3,2,1].map((s,i)=>`<div class="bar-r"><a href="#">${s} star</a><div class="bar-bg"><div class="bar-fl" style="width:${barPcts[i]}%"></div></div><span class="bar-p">${barPcts[i]}%</span></div>`).join('')}</div>
+  </div>
+  ${(d.reviews||[]).map(r=>`<div class="rev-card"><div class="rver"><div class="rav">${(r.name||'A')[0]}</div><span>${r.name}</span>${r.verified?'<span class="veri">Verified Purchase</span>':''}</div>${starsHTML(r.stars||4,14)}<div class="rtitle">${r.title}</div><div class="rdate">Reviewed on ${r.date}</div><div class="rbody">${r.body}</div></div>`).join('')}
+</div>
+
+<!-- FOOTER -->
+<div class="ft-top" onclick="window.scrollTo(0,0)">Back to top</div>
+<div class="ft"><div class="ft-cols">
+  <div class="ft-col"><h4>Get to Know Us</h4><a>About Us</a><a>Careers</a><a>Press Releases</a><a>Amazon Science</a></div>
+  <div class="ft-col"><h4>Make Money with Us</h4><a>Sell on Amazon</a><a>Supply to Amazon</a><a>Associates Programme</a></div>
+  <div class="ft-col"><h4>Let Us Help You</h4><a>Your Account</a><a>Returns Centre</a><a>Help</a></div>
+</div></div>
+<div class="ft-bot">© 1996-2026, Amazon.com, Inc. or its affiliates &nbsp;|&nbsp; <b>⚠️ MOCKUP — For demonstration purposes only</b></div>
+<button class="edit-btn" onclick="document.getElementById('ov').classList.remove('hidden');document.getElementById('page').style.display='none'" title="Edit">✏️</button>
+  `;
+  window.scrollTo(0,0);
+}
+</script>
+</body>
+</html>
