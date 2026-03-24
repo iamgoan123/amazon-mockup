@@ -196,7 +196,7 @@ body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#0F1111;font-s
     <span style="font-size:26px;font-weight:700;color:#FF9900;font-style:italic">amazon</span>
     <span style="font-size:13px;color:#565959;border-left:1px solid #ddd;padding-left:10px">AI Page Generator</span>
   </div>
-  <p class="sub">Enter brand & product — Grok AI generates the entire Amazon product page.</p>
+  <p class="sub">Enter brand & product — AI generates the entire Amazon product page.</p>
 
   <label>Brand Name <span class="req">*</span></label>
   <input id="f-brand" placeholder="e.g. Columbia, Nike, Samsung, Dyson">
@@ -226,7 +226,7 @@ body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#0F1111;font-s
   <textarea id="f-ctx" placeholder="e.g. Water-repellent, Omni-Heat technology, 650-fill down, for hiking and winter use"></textarea>
 
   <div class="error-box" id="errBox"></div>
-  <button class="gen-btn" id="genBtn" onclick="doGenerate()">✨ Generate with Grok AI</button>
+  <button class="gen-btn" id="genBtn" onclick="doGenerate()">✨ Generate Amazon Page</button>
 </div>
 </div>
 
@@ -276,7 +276,7 @@ function showLoading(){
   el.innerHTML=`
     <div class="loading-screen">
       <div class="spinner"></div>
-      <div class="ld-title">Generating with Grok AI</div>
+      <div class="ld-title">Generating with AI</div>
       <div class="ld-msg" id="ldMsg">Sending product details to AI...</div>
       <div class="ld-steps" id="ldSteps">
         <div class="active" id="ls0">⏳ Analyzing brand & product...</div>
