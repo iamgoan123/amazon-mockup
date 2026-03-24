@@ -1,6 +1,5 @@
 // netlify/functions/generate.mjs
 // Netlify serverless function — calls OpenRouter API (FREE, no credit card)
-// Uses free models available on OpenRouter
 
 export default async (req) => {
   const headers = {
@@ -135,91 +134,77 @@ IMPORTANT RULES:
 - All text must be professional and realistic
 - Return ONLY the JSON object, nothing else`;
 
-    // Try multiple free models in order of preference
-    const freeModels = [
-      "google/gemini-2.0-flash-exp:free",
-      "meta-llama/llama-4-scout:free",
-      "deepseek/deepseek-chat-v3-0324:free",
-      "qwen/qwen3-235b-a22b:free",
-    ];
-
-    let lastError = null;
-
-    for (const model of freeModels) {
-      try {
-        console.log(`Trying model: ${model}`);
-
-        const response = await fetch(
-          "https://openrouter.ai/api/v1/chat/completions",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${API_KEY}`,
-              "HTTP-Referer": "https://amazonmockuppage.netlify.app",
-              "X-Title": "Amazon Mockup Generator",
+    const response = await fetch(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${API_KEY}`,
+          "HTTP-Referer": "https://amazonmockuppage.netlify.app",
+          "X-Title": "Amazon Mockup Generator",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "openrouter/free",
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a JSON data generator. Return ONLY valid JSON. No markdown, no backticks, no explanation, no preamble, no thinking tags, no chain of thought. Just output the raw JSON object.",
             },
-            body: JSON.stringify({
-              model: model,
-              messages: [
-                {
-                  role: "system",
-                  content:
-                    "You are a JSON data generator. Return ONLY valid JSON. No markdown, no backticks, no explanation, no preamble, no thinking tags. Just the JSON object.",
-                },
-                { role: "user", content: prompt },
-              ],
-              temperature: 0.7,
-              max_tokens: 2500,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          const errText = await response.text();
-          console.error(`Model ${model} failed:`, response.status, errText);
-          lastError = `${model}: ${response.status}`;
-          continue; // Try next model
-        }
-
-        const data = await response.json();
-        const content = data.choices?.[0]?.message?.content || "";
-
-        // Clean the response — remove thinking tags, markdown, etc.
-        let cleaned = content
-          .replace(/<think>[\s\S]*?<\/think>/g, "")
-          .replace(/```json\s*/g, "")
-          .replace(/```\s*/g, "")
-          .trim();
-
-        // Find the JSON object in the response
-        const jsonStart = cleaned.indexOf("{");
-        const jsonEnd = cleaned.lastIndexOf("}");
-        if (jsonStart !== -1 && jsonEnd !== -1) {
-          cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
-        }
-
-        const parsed = JSON.parse(cleaned);
-        console.log(`Success with model: ${model}`);
-        return new Response(JSON.stringify(parsed), {
-          status: 200,
-          headers,
-        });
-      } catch (modelErr) {
-        console.error(`Model ${model} error:`, modelErr.message);
-        lastError = `${model}: ${modelErr.message}`;
-        continue; // Try next model
+            { role: "user", content: prompt },
+          ],
+          temperature: 0.7,
+          max_tokens: 2500,
+        }),
       }
+    );
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("OpenRouter error:", response.status, errText);
+      return new Response(
+        JSON.stringify({
+          error: `AI API error: ${response.status}`,
+          details: errText,
+        }),
+        { status: 502, headers }
+      );
     }
 
-    // All models failed
-    return new Response(
-      JSON.stringify({
-        error: "All AI models failed. Please try again in a moment.",
-        lastError,
-      }),
-      { status: 502, headers }
-    );
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || "";
+
+    // Clean the response — remove thinking tags, markdown, etc.
+    let cleaned = content
+      .replace(/<think>[\s\S]*?<\/think>/g, "")
+      .replace(/```json\s*/g, "")
+      .replace(/```\s*/g, "")
+      .trim();
+
+    // Find the JSON object in the response
+    const jsonStart = cleaned.indexOf("{");
+    const jsonEnd = cleaned.lastIndexOf("}");
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+      cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error("JSON parse error:", parseErr.message);
+      console.error("Raw content:", content.substring(0, 500));
+      return new Response(
+        JSON.stringify({
+          error: "Failed to parse AI response. Please try again.",
+          raw: content.substring(0, 300),
+        }),
+        { status: 500, headers }
+      );
+    }
+
+    return new Response(JSON.stringify(parsed), { status: 200, headers });
   } catch (err) {
     console.error("Function error:", err);
     return new Response(
